@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaf Disease Predictor</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Leaf Disease Predictor</h1>
+        <div class="row">
+            <div class="col-md-6">
+                <h3>Upload Image</h3>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <input type="file" class="form-control-file" id="fileInput" name="file">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Predict</button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <h3>Live Capture from IP Camera</h3>
+                <div class="form-group">
+                    <label for="ipCameraUrl">IP Camera URL</label>
+                    <input type="text" class="form-control" id="ipCameraUrl" value="http://192.168.137.36:8080/video" readonly>
+                </div>
+                <button id="startCameraBtn" class="btn btn-success">Start Camera</button>
+                <img id="liveFeed" width="100%" />
+                <button id="captureBtn" class="btn btn-danger mt-2">Capture</button>
+                <canvas id="captureCanvas" class="d-none"></canvas>
+            </div>
+        </div>
+        <div class="mt-4" id="predictionResult">
+            <h3>Prediction: <span id="predictionLabel"></span></h3>
+            <img id="resultImage" class="img-fluid" />
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (!response.ok) throw new Error('Network response was not ok.');
+
+                const result = await response.json();
+                displayPrediction(result, fileInput.files[0]);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        document.getElementById('startCameraBtn').addEventListener('click', () => {
+            const ipCameraUrl = document.getElementById('ipCameraUrl').value;
+            document.getElementById('liveFeed').src = ipCameraUrl;
+        });
+
+        document.getElementById('captureBtn').addEventListener('click', async () => {
+            const liveFeed = document.getElementById('liveFeed');
+            const captureCanvas = document.getElementById('captureCanvas');
+            captureCanvas.width = liveFeed.videoWidth;
+            captureCanvas.height = liveFeed.videoHeight;
+            const context = captureCanvas.getContext('2d');
+            context.drawImage(liveFeed, 0, 0, liveFeed.videoWidth, liveFeed.videoHeight);
+            captureCanvas.toBlob(async (blob) => {
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('file', blob, 'capture.png');
+
+                    try {
+                        const response = await fetch('/predict', {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        if (!response.ok) throw new Error('Network response was not ok.');
+
+                        const result = await response.json();
+                        displayPrediction(result, blob);
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+            }, 'image/png');
+        });
+
+        function displayPrediction(result, imageFile) {
+            document.getElementById('predictionLabel').innerText = result.label;
+            document.getElementById('resultImage').src = URL.createObjectURL(imageFile);
+        }
+    </script>
+</body>
+</html>
